@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Consumo - Pantaneiro</title>
+  
+  <link rel="icon" type="image/png" sizes="192x192" href="./favicon.png?v=7">
+  <link rel="apple-touch-icon" sizes="180x180" href="./favicon.png?v=7">
+  <link rel="shortcut icon" href="./favicon.ico?v=7">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Pantaneiro PCP">
+  <meta name="theme-color" content="#1e293b">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen pb-10 flex flex-col justify-between">
+
+  <!-- TELA DE LOGIN ESTILIZADA -->
+  <div id="view-login" class="fixed inset-0 bg-[#2d6a27] z-50 flex items-center justify-center p-4">
+    <div class="max-w-md w-full flex flex-col items-center">
+      <div class="mb-6 flex justify-center">
+        <img src="https://seblkgojofskpkziwxse.supabase.co/storage/v1/object/public/logos/logo_header_white.png" alt="Logo Pantaneiro" class="h-16 w-auto object-contain">
+      </div>
+
+      <div class="bg-white p-8 rounded-3xl shadow-2xl w-full border border-gray-100">
+        <div class="text-center mb-6">
+          <h2 class="text-2xl font-black text-[#2d6a27]">Controle de Consumo</h2>
+          <p class="text-xs text-gray-500 font-semibold mt-1">Digite suas credenciais para acessar o sistema</p>
+        </div>
+
+        <form onsubmit="realizarLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1">Usuário de Acesso</label>
+            <input type="text" id="login-usuario" required placeholder="operadorpantaneiro" class="w-full p-3.5 border-none rounded-xl font-semibold text-gray-800 bg-[#ebf2fa] focus:ring-2 focus:ring-[#2d6a27] outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1">Senha</label>
+            <input type="password" id="login-senha" required placeholder="••••••••••••" class="w-full p-3.5 border-none rounded-xl font-semibold text-gray-800 bg-[#ebf2fa] focus:ring-2 focus:ring-[#2d6a27] outline-none">
+          </div>
+
+          <div id="login-erro" class="hidden text-red-600 text-xs font-bold text-center bg-red-50 p-2.5 rounded-xl border border-red-200">
+            ❌ Usuário ou senha incorretos!
+          </div>
+
+          <button type="submit" class="w-full bg-[#2d6a27] hover:bg-[#23531e] text-white font-black py-4 rounded-xl shadow-lg uppercase tracking-wider text-sm transition active:scale-95 flex items-center justify-center gap-2 mt-2">
+            Entrar ➔
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVEGAÇÃO / MENU SUPERIOR -->
+  <nav id="menu-principal" class="hidden bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <span class="text-2xl">🏭</span>
+        <div>
+          <h1 class="text-lg font-bold">Controle de Consumo</h1>
+          <p id="label-usuario-logado" class="text-xs text-emerald-400 font-bold">Conectado como: -</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="nav-btn-fabrica" onclick="mudarAba('fabrica')" class="hidden px-4 py-2 rounded-lg font-bold bg-red-600 hover:bg-red-700 transition">
+          ❌ Perdas PVC
+        </button>
+        <button id="nav-btn-corte" onclick="mudarAba('corte')" class="hidden px-4 py-2 rounded-lg font-bold bg-slate-700 hover:bg-slate-600 transition">
+          ✂️ Corte
+        </button>
+        <button id="nav-btn-gerencia" onclick="mudarAba('gerencia')" class="hidden px-4 py-2 rounded-lg font-bold bg-slate-700 hover:bg-slate-600 transition">
+          📊 Dashboard e Relatório Gerencial
+        </button>
+        <button id="nav-btn-admin" onclick="mudarAba('admin')" class="hidden px-4 py-2 rounded-lg font-bold bg-purple-700 hover:bg-purple-600 transition">
+          ⚙️ Painel do Admin
+        </button>
+        <button onclick="fazerLogout()" class="px-3 py-2 rounded-lg font-bold bg-gray-800 hover:bg-gray-700 text-red-400 text-xs border border-gray-700">
+          🚪 Sair
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main id="conteudo-principal" class="hidden max-w-7xl mx-auto p-4 mt-4 w-full flex-grow">
+
+    <div id="alerta-sucesso" class="hidden bg-emerald-600 text-white p-4 rounded-xl text-center font-bold text-lg mb-6 shadow-xl animate-bounce">
+      ✅ Operação realizada com sucesso!
+    </div>
+
+    <!-- 1. TELA TABLET PVC -->
+    <section id="view-fabrica" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b pb-4">
+          <h2 class="text-2xl font-black text-red-700 uppercase tracking-wide flex items-center gap-2">
+            <span>🚨</span> Registro de Peças Mortas (PVC)
+          </h2>
+
+          <div class="bg-red-50 p-2.5 rounded-xl border border-red-200 flex items-center gap-2 w-full md:w-auto">
+            <label class="text-xs font-black text-red-900 uppercase whitespace-nowrap">📅 Data do Lançamento:</label>
+            <input type="date" id="pvc-data-registro" required class="p-2 border-2 border-red-300 rounded-lg font-extrabold text-slate-800 bg-white text-base focus:border-red-600 outline-none w-full md:w-auto">
+          </div>
+        </div>
+
+        <div class="mb-6 space-y-4">
+          <label class="block text-sm font-bold text-gray-700 uppercase tracking-wider">1. SELECIONE O MODELO:</label>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-blue-50/60 p-4 rounded-2xl border border-blue-200">
+              <span class="block text-xs font-black text-blue-900 uppercase mb-3 flex items-center gap-1.5">
+                <span>🧥</span> JAQUETAS:
+              </span>
+              <div id="grid-jaquetas" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2"></div>
+            </div>
+
+            <div class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200">
+              <span class="block text-xs font-black text-emerald-900 uppercase mb-3 flex items-center gap-1.5">
+                <span>👖</span> CALÇAS:
+              </span>
+              <div id="grid-calcas" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-6"><label class="block text-sm font-bold text-gray-700 mb-2">2. SELECIONE O TAMANHO:</label><div id="grid-tamanhos" class="grid grid-cols-4 sm:grid-cols-6 gap-2"></div></div>
+        <div class="mb-6"><label class="block text-sm font-bold text-gray-700 mb-2">3. SELECIONE A COR:</label><div id="grid-cores" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"></div></div>
+        
+        <div class="mb-6 space-y-4">
+          <label class="block text-sm font-bold text-gray-700 uppercase tracking-wider">4. SELECIONE O SETOR:</label>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200">
+              <span class="block text-xs font-black text-emerald-900 uppercase mb-3 flex items-center gap-1.5"><span>👖</span> SETORES CALÇA:</span>
+              <div id="grid-setores-calcas" class="grid grid-cols-1 gap-2"></div>
+            </div>
+            <div class="bg-blue-50/60 p-4 rounded-2xl border border-blue-200">
+              <span class="block text-xs font-black text-blue-900 uppercase mb-3 flex items-center gap-1.5"><span>🧥</span> SETORES JAQUETA:</span>
+              <div id="grid-setores-jaquetas" class="grid grid-cols-1 gap-2"></div>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200">
+              <span class="block text-xs font-black text-gray-700 uppercase mb-3 flex items-center gap-1.5"><span>📦</span> SETOR EXPEDIÇÃO:</span>
+              <div id="grid-setores-expedicao" class="grid grid-cols-1 gap-2"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-gray-50 p-4 rounded-xl border mb-6 max-w-md mx-auto flex flex-col items-center">
+          <label class="block text-sm font-bold text-gray-700 mb-2 text-center uppercase">5. QUANTIDADE (PEÇAS):</label>
+          <div class="flex items-center justify-center space-x-4">
+            <button onclick="alterarQtd(-1)" class="w-14 h-14 bg-gray-200 font-black text-2xl rounded-xl border active:scale-95 shadow">-</button>
+            <span id="txt-qtd" class="text-3xl font-black w-12 text-center text-gray-800">1</span>
+            <button onclick="alterarQtd(1)" class="w-14 h-14 bg-gray-200 font-black text-2xl rounded-xl border active:scale-95 shadow">+</button>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 p-5 rounded-2xl border space-y-5 mb-6">
+          <label class="block text-sm font-bold text-gray-700 uppercase tracking-wider">6. MOTIVO DA PERDA:</label>
+
+          <div>
+            <button type="button" id="btn-peca-curta" onclick="toggleBtnPecaCurta()" class="w-full py-4 px-4 rounded-xl border-2 border-amber-400 bg-amber-100 hover:bg-amber-200 text-amber-900 font-black text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition active:scale-98">
+              <span>✂️</span> PEÇA CURTA
+            </button>
+          </div>
+
+          <div class="space-y-4 pt-2 border-t border-gray-200">
+            <span class="block text-sm font-bold text-gray-700 uppercase tracking-wider">SELECIONE UM MOTIVO FREQUENTE:</span>
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 space-y-2">
+                <span class="block text-[11px] font-black text-emerald-900 uppercase">👖 CALÇA PREP:</span>
+                <div class="grid grid-cols-1 gap-1.5" id="grid-motivos-calca-prep"></div>
+              </div>
+              <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 space-y-2">
+                <span class="block text-[11px] font-black text-emerald-900 uppercase">👖 CALÇA ELÁST:</span>
+                <div class="grid grid-cols-1 gap-1.5" id="grid-motivos-calca-elast"></div>
+              </div>
+              <div class="bg-blue-50/70 p-3 rounded-xl border border-blue-200 space-y-2">
+                <span class="block text-[11px] font-black text-blue-900 uppercase">🧥 JAQUETA PREP:</span>
+                <div class="grid grid-cols-1 gap-1.5" id="grid-motivos-jaqueta-prep"></div>
+              </div>
+              <div class="bg-blue-50/70 p-3 rounded-xl border border-blue-200 space-y-2">
+                <span class="block text-[11px] font-black text-blue-900 uppercase">🧥 JAQUETA ZÍPER:</span>
+                <div class="grid grid-cols-1 gap-1.5" id="grid-motivos-jaqueta-zip"></div>
+              </div>
+              <div class="bg-blue-50/70 p-3 rounded-xl border border-blue-200 space-y-2">
+                <span class="block text-[11px] font-black text-blue-900 uppercase">🧥 JAQUETA FECH:</span>
+                <div class="grid grid-cols-1 gap-1.5" id="grid-motivos-jaqueta-fech"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-gray-200">
+            <label class="block text-xs font-bold text-gray-600 mb-1 uppercase">OU DIGITE OUTRO MOTIVO (OPCIONAL):</label>
+            <input type="text" id="input-motivo" oninput="limparSelecaoMotivosBotoes()" placeholder="Ex: Furo no tecido, mancha no PVC..." class="w-full p-3.5 border-2 border-gray-300 rounded-xl focus:border-red-500 outline-none transition font-medium">
+          </div>
+        </div>
+
+        <button onclick="salvarPerdaFabrica()" class="w-full bg-red-600 hover:bg-red-700 active:scale-98 text-white text-xl font-black py-5 rounded-2xl shadow-xl uppercase tracking-wider transition">
+          💾 Confirmar e Registrar Perda
+        </button>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-4">
+        <h3 class="text-lg font-black text-gray-800 uppercase flex items-center gap-2">
+          <span>📋</span> Histórico de Peças Mortas Lançadas
+        </h3>
+        <div class="flex flex-wrap items-end gap-3 bg-gray-50 p-4 rounded-xl border">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Data Inicial:</label>
+            <input type="date" id="pvc-filtro-ini" class="p-2 border rounded-lg font-bold text-sm bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Data Final:</label>
+            <input type="date" id="pvc-filtro-fim" class="p-2 border rounded-lg font-bold text-sm bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Setor:</label>
+            <select id="pvc-filtro-setor" class="p-2 border rounded-lg font-bold text-sm bg-white outline-none">
+              <option value="TODOS">-- TODOS OS SETORES --</option>
+              <option value="CALÇA PREPARAÇÃO">CALÇA PREPARAÇÃO</option>
+              <option value="CALÇA ELÁSTICO">CALÇA ELÁSTICO</option>
+              <option value="EXPEDIÇÃO">EXPEDIÇÃO</option>
+              <option value="JAQUETA PREPARAÇÃO">JAQUETA PREPARAÇÃO</option>
+              <option value="JAQUETA FECHAMENTO">JAQUETA FECHAMENTO</option>
+              <option value="JAQUETA ZÍPER">JAQUETA ZÍPER</option>
+            </select>
+          </div>
+          <button onclick="carregarConsultaPVC()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg text-sm">
+            ⚡ Filtrar
+          </button>
+        </div>
+
+        <div class="overflow-y-auto max-h-[400px] border rounded-xl">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-gray-100 text-gray-700 uppercase font-bold border-b sticky top-0 z-10">
+              <tr>
+                <th class="p-3 bg-gray-100">DATA</th>
+                <th class="p-3 bg-gray-100">MODELO</th>
+                <th class="p-3 bg-gray-100">TAM / COR</th>
+                <th class="p-3 bg-gray-100">SETOR</th>
+                <th class="p-3 bg-gray-100">QUANTIDADE</th>
+                <th class="p-3 bg-gray-100">PERDA (M)</th>
+                <th class="p-3 bg-gray-100">MOTIVO</th>
+              </tr>
+            </thead>
+            <tbody id="tb-consulta-pvc" class="divide-y font-medium"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. TELA MESA DE CORTE -->
+    <section id="view-corte" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b pb-4">
+          <h2 class="text-2xl font-black text-blue-800 uppercase tracking-wide flex items-center gap-2">
+            <span>✂️</span> Lançamento de Ordem de Corte
+          </h2>
+
+          <button type="button" id="btn-mic-ia" onclick="alternarGravacaoAudioIA()" class="bg-amber-500 hover:bg-amber-600 text-white font-black px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 transition active:scale-95 text-sm uppercase tracking-wider">
+            <span id="mic-icon" class="text-xl">🎙️</span>
+            <span id="mic-text">Lançar Ordem por Voz (IA)</span>
+          </button>
+        </div>
+
+        <form id="form-corte" onsubmit="salvarCorte(event)" class="space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div><label class="block text-sm font-bold text-gray-700 mb-1">Data:</label><input type="date" id="corte-data" required class="w-full p-3 border-2 rounded-xl"></div>
+            <div>
+              <label class="block text-sm font-bold text-gray-700 mb-1">Modelo:</label>
+              <select id="corte-modelo" onchange="validarModeloCampoUnico(this.value)" required class="w-full p-3 border-2 rounded-xl bg-white"></select>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-bold text-gray-700 mb-1">Medida (m):</label>
+              <input type="number" step="0.01" max="10.00" id="corte-medida" required placeholder="0.00" class="w-full p-3 border-2 rounded-xl">
+            </div>
+            
+            <div><label class="block text-sm font-bold text-gray-700 mb-1">Camadas:</label><input type="number" id="corte-camadas" required placeholder="0" class="w-full p-3 border-2 rounded-xl"></div>
+          </div>
+          <div><label class="block text-sm font-bold text-gray-700 mb-2">Grade de Peças Cortadas por Tamanho:</label><div id="grid-grade-corte" class="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-12 gap-2"></div></div>
+          
+          <div class="bg-amber-50 p-4 rounded-xl border border-amber-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-bold text-amber-900 mb-1">Medida Perda Enfesto (m):</label>
+              <input type="number" step="0.01" max="10.00" id="corte-medida-perda" placeholder="0.00" class="w-full p-3 border-2 border-amber-300 rounded-xl">
+            </div>
+            <div class="flex flex-col justify-center"><span class="text-xs font-bold text-amber-800 uppercase">Perda Total Enfesto Estimada:</span><span id="txt-perda-enfesto-calc" class="text-2xl font-black text-amber-900">0.00 m</span></div>
+          </div>
+          <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-lg text-lg uppercase">💾 Salvar Lançamento do Corte</button>
+        </form>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-4">
+        <h3 class="text-lg font-black text-gray-800 uppercase flex items-center gap-2">
+          <span>📋</span> Histórico de Ordens de Corte Lançadas
+        </h3>
+        <div class="flex flex-wrap items-end gap-3 bg-gray-50 p-4 rounded-xl border">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Data Inicial:</label>
+            <input type="date" id="corte-filtro-ini" class="p-2 border rounded-lg font-bold text-sm bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Data Final:</label>
+            <input type="date" id="corte-filtro-fim" class="p-2 border rounded-lg font-bold text-sm bg-white">
+          </div>
+          <button onclick="carregarConsultaCorte()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-sm">
+            ⚡ Filtrar
+          </button>
+        </div>
+
+        <div class="overflow-y-auto max-h-[400px] border rounded-xl">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-gray-100 text-gray-700 uppercase font-bold border-b sticky top-0 z-10">
+              <tr>
+                <th class="p-3 bg-gray-100">DATA</th>
+                <th class="p-3 bg-gray-100">MODELO</th>
+                <th class="p-3 bg-gray-100">QTD PEÇAS</th>
+                <th class="p-3 bg-gray-100">TOTAL METROS</th>
+                <th class="p-3 bg-gray-100">CONSUMO REAL UNIT.</th>
+                <th class="p-3 bg-gray-100">PROJETADO FT</th>
+                <th class="p-3 bg-gray-100">DIFERENÇA</th>
+              </tr>
+            </thead>
+            <tbody id="tb-consulta-corte" class="divide-y font-medium"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. DASHBOARD GERENCIAL -->
+    <section id="view-gerencia" class="hidden space-y-6">
+      <div class="bg-slate-900 text-white p-6 rounded-2xl shadow-md">
+        <h3 class="text-lg font-bold mb-4 flex items-center gap-2"><span>🔍</span> Filtros do Relatório</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-300 mb-1">Data Inicial:</label>
+            <input type="date" id="filtro-data-ini" class="w-full p-2.5 rounded-lg text-slate-900 font-bold">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 mb-1">Data Final:</label>
+            <input type="date" id="filtro-data-fim" class="w-full p-2.5 rounded-lg text-slate-900 font-bold">
+          </div>
+          
+          <div class="relative">
+            <label class="block text-xs font-bold text-slate-300 mb-1">Modelos:</label>
+            <button type="button" onclick="toggleMultiSelect()" id="btn-multi-select" class="w-full p-2.5 rounded-lg text-slate-900 font-bold bg-white text-left flex justify-between items-center">
+              <span id="txt-multi-select" class="truncate">Todos os Modelos</span>
+              <span class="text-xs text-gray-500">▼</span>
+            </button>
+            
+            <div id="dropdown-multi-select" class="hidden absolute top-full left-0 right-0 bg-white text-slate-900 rounded-lg shadow-2xl border p-3 mt-1 z-50 max-h-60 overflow-y-auto space-y-2">
+              <label class="flex items-center space-x-2 font-bold p-1 hover:bg-gray-100 rounded cursor-pointer border-b pb-2">
+                <input type="checkbox" id="chk-todos-modelos" onchange="marcarTodosModelos(this)" checked class="w-4 h-4 rounded text-blue-600">
+                <span>-- Selecionar Todos --</span>
+              </label>
+              <div id="container-chk-modelos" class="space-y-1"></div>
+            </div>
+          </div>
+
+          <div class="flex items-end gap-2">
+            <button onclick="carregarDashboard()" class="flex-1 bg-blue-600 hover:bg-blue-500 font-bold py-2.5 rounded-lg">⚡ Filtrar</button>
+            <button onclick="exportarExcel()" class="bg-emerald-600 hover:bg-emerald-500 font-bold px-4 py-2.5 rounded-lg flex items-center gap-1">📥 Excel Geral</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        <div class="bg-white p-4 rounded-2xl border shadow-sm"><span class="text-[10px] font-bold text-gray-500 uppercase block">Total Peças</span><p id="kpi-total-pecas" class="text-xl font-black text-emerald-600 mt-1">0</p></div>
+        <div class="bg-white p-4 rounded-2xl border shadow-sm"><span class="text-[10px] font-bold text-gray-500 uppercase block">Consumo Médio</span><p id="kpi-consumo-medio" class="text-xl font-black text-amber-600 mt-1">0.00 m</p></div>
+        <div class="bg-white p-4 rounded-2xl border shadow-sm"><span class="text-[10px] font-bold text-gray-500 uppercase block">Consumo Total em Metros</span><p id="kpi-consumo" class="text-xl font-black text-gray-800 mt-1">0.00 m</p></div>
+        <div class="bg-white p-4 rounded-2xl border shadow-sm"><span class="text-[10px] font-bold text-gray-500 uppercase block">Projetado Ficha Técnica</span><p id="kpi-projetado" class="text-xl font-black text-blue-600 mt-1">0.00 m</p></div>
+        <div class="bg-white p-4 rounded-2xl border shadow-sm"><span class="text-[10px] font-bold text-gray-500 uppercase block">Diferença Efetiva (FT)</span><p id="kpi-diferenca" class="text-xl font-black text-purple-600 mt-1">0.00 m</p></div>
+        <div class="bg-white p-4 rounded-2xl border shadow-sm"><span class="text-[10px] font-bold text-gray-500 uppercase block">Perda Total Tecido (Preto)</span><p id="kpi-perda-total" class="text-xl font-black text-red-600 mt-1">0.00 m</p></div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border">
+        <h4 class="font-bold text-lg text-gray-800 mb-4">Lançamentos de Corte no Período (Apenas Cor Preta)</h4>
+        <div class="overflow-y-auto max-h-[400px] border rounded-xl">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-gray-100 text-gray-700 uppercase font-bold border-b sticky top-0 z-10">
+              <tr>
+                <th class="p-3 bg-gray-100">Data</th>
+                <th class="p-3 bg-gray-100">Modelo</th>
+                <th class="p-3 bg-gray-100">QUANTIDADE DE PEÇAS</th>
+                <th class="p-3 bg-gray-100">TOTAL METROS</th>
+                <th class="p-3 bg-gray-100">PROJETADO PELA FT</th>
+                <th class="p-3 bg-gray-100">DIFERENÇA</th>
+                <th class="col-acao-admin p-3 bg-gray-100 text-center hidden">AÇÕES ADMIN</th>
+              </tr>
+            </thead>
+            <tbody id="tb-corte" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
+          <h4 class="font-bold text-lg text-gray-800">Peças Mortas (PVC) no Período</h4>
+          
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center space-x-2 bg-gray-50 p-2 rounded-xl border">
+              <label class="text-xs font-bold text-gray-700 uppercase">Filtrar Cor PVC:</label>
+              <select id="filtro-pvc-cor" onchange="renderizarTabelaPVCGerencia()" class="p-1.5 border rounded-lg font-bold text-xs bg-white text-gray-800 outline-none">
+                <option value="PRETO" selected>PRETO (Padrão Corte)</option>
+                <option value="TODAS">-- TODAS AS CORES --</option>
+                <option value="VERDE MILITAR">VERDE MILITAR</option>
+                <option value="AMARELO OURO">AMARELO OURO</option>
+                <option value="AZUL MARINHO">AZUL MARINHO</option>
+                <option value="ROSA PINK">ROSA PINK</option>
+                <option value="PRETO / ROSA PINK">PRETO / ROSA PINK</option>
+                <option value="PRETO / LILÁS">PRETO / LILÁS</option>
+              </select>
+            </div>
+
+            <button onclick="exportarExcelPerdasPVC()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1 shadow transition">
+              📥 Excel Perdas PVC
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-y-auto max-h-[400px] border rounded-xl">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-gray-100 text-gray-700 uppercase font-bold border-b sticky top-0 z-10">
+              <tr>
+                <th class="p-3 bg-gray-100">DATA</th>
+                <th class="p-3 bg-gray-100">MODELO</th>
+                <th class="p-3 bg-gray-100">TAM/COR</th>
+                <th class="p-3 bg-gray-100">SETOR</th>
+                <th class="p-3 bg-gray-100">QTD</th>
+                <th class="p-3 bg-gray-100">PERDA (M)</th>
+                <th class="p-3 bg-gray-100">MOTIVO</th>
+                <th class="col-acao-admin p-3 bg-gray-100 text-center hidden">AÇÕES ADMIN</th>
+              </tr>
+            </thead>
+            <tbody id="tb-fabrica" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. PAINEL ADMIN MASTER -->
+    <section id="view-admin" class="hidden space-y-8">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
+          <span>📐</span> Cadastrar / Atualizar Modelo e Ficha Técnica
+        </h2>
+
+        <form onsubmit="salvarFichaTecnica(event)" class="bg-blue-50 p-5 rounded-2xl border border-blue-200 mb-6 space-y-5">
+          <div class="flex flex-wrap gap-4 border-b border-blue-200 pb-4 items-center justify-between">
+            <div class="w-full sm:w-auto flex-1 min-w-[200px]">
+              <label class="block text-xs font-black text-blue-900 mb-1 uppercase">Código / Número do Modelo *</label>
+              <input type="text" id="ft-modelo-input" required placeholder="Ex: 222, 2902, 3004..." class="w-full p-2.5 border-2 border-blue-300 rounded-xl font-bold bg-white text-gray-800 outline-none focus:border-blue-600">
+            </div>
+
+            <div class="bg-white p-3 rounded-xl border border-blue-200 flex flex-wrap gap-4 items-center">
+              <span class="text-xs font-black text-slate-800 uppercase">Exibir nas Telas:</span>
+              <label class="flex items-center space-x-1.5 text-xs font-bold text-gray-700 cursor-pointer">
+                <input type="checkbox" id="chk-exibir-corte" checked class="w-4 h-4 text-blue-600 rounded">
+                <span>✂️ Corte + Relatórios</span>
+              </label>
+
+              <div class="flex items-center space-x-2 border-l pl-3 border-gray-300">
+                <span class="text-xs font-bold text-gray-700">Perdas (PVC):</span>
+                <select id="sel-pvc-tipo" class="p-1.5 border rounded-lg text-xs font-bold bg-gray-50 outline-none">
+                  <option value="NAO">❌ Não Exibir em PVC</option>
+                  <option value="JAQUETA">🧥 Jaqueta</option>
+                  <option value="CALCA">👖 Calça</option>
+                </select>
+
+                <select id="sel-pvc-categoria" class="p-1.5 border rounded-lg text-xs font-bold bg-gray-50 outline-none">
+                  <option value="SUPER">SUPER</option>
+                  <option value="0,28MM">0,28MM</option>
+                  <option value="LUXO">LUXO</option>
+                  <option value="FEMININA">FEMININA</option>
+                  <option value="INFANTIL">INFANTIL</option>
+                  <option value="PESCADOR">PESCADOR</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <span class="block text-xs font-black text-blue-900 mb-2 uppercase">Consumo Unitário em Metros por Tamanho (Ficha Técnica):</span>
+            <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">PP</label><input type="number" step="0.0001" id="ft-pp" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">P</label><input type="number" step="0.0001" id="ft-p" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">M</label><input type="number" step="0.0001" id="ft-m" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">G</label><input type="number" step="0.0001" id="ft-g" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">GG</label><input type="number" step="0.0001" id="ft-gg" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">EX</label><input type="number" step="0.0001" id="ft-ex" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">EXG</label><input type="number" step="0.0001" id="ft-exg" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">2G</label><input type="number" step="0.0001" id="ft-g2" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">3G</label><input type="number" step="0.0001" id="ft-g3" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">4G</label><input type="number" step="0.0001" id="ft-g4" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">5G</label><input type="number" step="0.0001" id="ft-g5" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+              <div><label class="block text-[11px] font-bold text-gray-700 mb-1">ÚNICO</label><input type="number" step="0.0001" id="ft-unico" placeholder="0.00" class="w-full p-2 border rounded-lg bg-white text-center font-bold"></div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" onclick="limparFormFichaTecnica()" class="px-4 py-2.5 bg-gray-200 text-gray-700 font-bold rounded-xl text-xs hover:bg-gray-300">🧹 Limpar</button>
+            <button type="submit" class="bg-blue-700 hover:bg-blue-800 text-white font-black px-6 py-2.5 rounded-xl shadow uppercase text-xs tracking-wider">💾 Salvar Modelo / Ficha Técnica</button>
+          </div>
+        </form>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-100 text-gray-700 font-bold border-b">
+              <tr><th class="p-2">MODELO</th><th class="p-2">DESTINO SISTEMA</th><th class="p-2">PP</th><th class="p-2">P</th><th class="p-2">M</th><th class="p-2">G</th><th class="p-2">GG</th><th class="p-2">EX</th><th class="p-2">EXG</th><th class="p-2">2G</th><th class="p-2">3G</th><th class="p-2">4G</th><th class="p-2">5G</th><th class="p-2">ÚNICO</th><th class="p-2 text-center">AÇÃO</th></tr>
+            </thead>
+            <tbody id="tb-fichas" class="divide-y font-semibold"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
+          <span>⚙️</span> Gerenciador de Usuários e Acessos
+        </h2>
+
+        <form onsubmit="salvarUsuario(event)" class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-8 space-y-4">
+          <input type="hidden" id="user-id-edit">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div><label class="block text-xs font-bold text-gray-700 mb-1">Nome do Funcionário *</label><input type="text" id="user-nome" required placeholder="Ex: José da Silva" class="w-full p-2.5 border rounded-lg bg-white font-semibold"></div>
+            <div><label class="block text-xs font-bold text-gray-700 mb-1">Usuário de Login *</label><input type="text" id="user-login" required placeholder="josesilva" class="w-full p-2.5 border rounded-lg bg-blue-50 font-bold text-blue-900"></div>
+            <div><label class="block text-xs font-bold text-gray-700 mb-1">Senha *</label><input type="text" id="user-senha" required placeholder="••••••••" class="w-full p-2.5 border rounded-lg bg-blue-50 font-bold text-blue-900"></div>
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Setor / Perfil *</label>
+              <select id="user-perfil" required class="w-full p-2.5 border rounded-lg bg-white font-bold">
+                <option value="producao_fabrica">PVC</option>
+                <option value="producao_corte">Corte</option>
+                <option value="gerencia">Gerência</option>
+                <option value="admin_master">Admin Master</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" id="btn-salvar-user" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded-lg shadow flex items-center gap-2"><span>➕</span> Cadastrar Novo Usuário</button>
+        </form>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm"><thead class="bg-gray-100 text-gray-700 uppercase font-bold border-b"><tr><th class="p-3">Nome</th><th class="p-3">Usuário</th><th class="p-3">Senha</th><th class="p-3">Setor / Perfil</th><th class="p-3 text-center">Ações</th></tr></thead><tbody id="tb-usuarios" class="divide-y"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer id="rodapeCreditos" class="hidden text-center py-4 text-xs font-semibold text-gray-500 border-t border-gray-200 mt-auto bg-white/80 backdrop-blur-sm w-full">
+    <p>Sistema desenvolvido por Maria Eduarda Santos | Controle de Consumo Pantaneiro</p>
+  </footer>
+
+  <script>
+    const SUPABASE_URL = "https://seblkgojofskpkziwxse.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlYmxrZ29qb2Zza3Breml3eHNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NjA0OTQsImV4cCI6MjEwNDUzNjQ5NH0.pXE0AbiVaYkXt4Z0F4COI1Ujmh4GYGEwLpcZIQrJ260";
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const MODELOS_BASE_CORTE = ['222','3002','3004','3003','2001','2002','2004','2003','2302','2304','2303','2352','2354','2353','2602','2603','2604','2702','2704','2703','2902','2904','2903','209','210','2300','2301','2351','GOLA','CAPUZ','2600'];
+    const MODELOS_PERMITIDOS_UNICO = ['2602', 'GOLA', 'CAPUZ', '2604', '2603', '2600', '2601'];
+
+    const TAMANHOS = ['PP','P','M','G','GG','EX','EXG','2G','3G','4G','5G','UNICO'];
+    const CORES = ['PRETO','VERDE MILITAR','AMARELO OURO','AZUL MARINHO','ROSA PINK','PRETO / ROSA PINK','PRETO / LILÁS'];
+
+    const SETORES_CALCAS = [{ id: 'CALÇA PREPARAÇÃO', label: 'CALÇA PREPARAÇÃO (RITA)' }, { id: 'CALÇA ELÁSTICO', label: 'CALÇA ELÁSTICO (JOÃO)' }];
+    const SETORES_JAQUETAS = [{ id: 'JAQUETA PREPARAÇÃO', label: 'JAQUETA PREPARAÇÃO (KEROLEN)' }, { id: 'JAQUETA ZÍPER', label: 'JAQUETA ZÍPER (TAINARA)' }, { id: 'JAQUETA FECHAMENTO', label: 'JAQUETA FECHAMENTO (SANDRA)' }];
+    const SETORES_EXPEDICAO = [{ id: 'EXPEDIÇÃO', label: 'EXPEDIÇÃO' }];
+
+    const MOTIVOS_GRUPOS = [
+      { grupoId: 'grid-motivos-calca-prep', setor: 'calca-prep', motivos: ['Lapinha', 'Velcro', 'Bate', 'Bainha', 'Elástico', 'Fundilho', 'Fechamento'] },
+      { grupoId: 'grid-motivos-calca-elast', setor: 'calca-elast', motivos: ['Queimada', 'Solda torta'] },
+      { grupoId: 'grid-motivos-jaqueta-prep', setor: 'jaqueta-prep', motivos: ['Refletivo frente', 'Refletivo costas', 'Bolso', 'Gola', 'Capuz'] },
+      { grupoId: 'grid-motivos-jaqueta-zip', setor: 'jaqueta-zip', motivos: ['Buraco/Prega'] },
+      { grupoId: 'grid-motivos-jaqueta-fech', setor: 'jaqueta-fech', motivos: ['Lapa', 'Lateral', 'Elástico'] }
+    ];
+
+    let usuarioLogado = null;
+    let stateFabrica = { modelo: '', tamanho: '', cor: '', setor: '', qtd: 1 };
+    let isPecaCurtaAtivo = false;
+    let chaveMotivoSelecionada = '';
+    let dadosCorteCache = [], dadosFabricaCache = [], listaFichasCache = [];
+
+    let modelosCorteDinamicos = [...MODELOS_BASE_CORTE];
+    let estruturaPvcDinamica = {
+      jaquetas: [
+        { tecido: 'SUPER', modelos: ['222', '2702', '2703', '2902', '2903'] },
+        { tecido: '0,28MM', modelos: ['2302', '2303', '2352', '2353'] },
+        { tecido: 'LUXO', modelos: ['2002', '2003'] },
+        { tecido: 'FEMININA', modelos: ['3002', '3003'] },
+        { tecido: 'INFANTIL', modelos: ['2602', '2603'] },
+        { tecido: 'PESCADOR', modelos: ['209'] }
+      ],
+      calcas: [
+        { tecido: 'SUPER', modelos: ['2704', '2904'] },
+        { tecido: '0,28MM', modelos: ['2304', '2354'] },
+        { tecido: 'LUXO', modelos: ['2004'] },
+        { tecido: 'FEMININA', modelos: ['3004'] },
+        { tecido: 'INFANTIL', modelos: ['2604'] },
+        { tecido: 'PESCADOR', modelos: ['210'] }
+      ]
+    };
+
+    let mediaRecorder = null, chunksAudio = [], estaGravando = false;
+    let reconhecimentoVoz = null;
+
+    window.onload = async () => {
+      await carregarFichasTecnicas();
+      renderGridsFabrica();
+      renderFormCorte();
+      initDatasFiltro();
+      renderMultiSelectModelos();
+      verificarSessao();
+    };
+
+    function formatarDataBR(dataIso) {
+      if (!dataIso) return '-';
+      const partes = dataIso.split('-');
+      return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : dataIso;
+    }
+
+    function renderMultiSelectModelos() {
+      const container = document.getElementById('container-chk-modelos');
+      container.innerHTML = modelosCorteDinamicos.map(m => `
+        <label class="flex items-center space-x-2 text-sm font-semibold p-1 hover:bg-gray-100 rounded cursor-pointer">
+          <input type="checkbox" value="${m}" checked onchange="atualizarTextoMultiSelect()" class="chk-mod-item w-4 h-4 text-blue-600 rounded">
+          <span>${m}</span>
+        </label>
+      `).join('');
+      atualizarTextoMultiSelect();
+    }
+
+    function toggleMultiSelect() { document.getElementById('dropdown-multi-select').classList.toggle('hidden'); }
+    document.addEventListener('click', (e) => {
+      const btn = document.getElementById('btn-multi-select'), drop = document.getElementById('dropdown-multi-select');
+      if (btn && drop && !btn.contains(e.target) && !drop.contains(e.target)) drop.classList.add('hidden');
+    });
+
+    function marcarTodosModelos(chkMain) {
+      document.querySelectorAll('.chk-mod-item').forEach(c => c.checked = chkMain.checked);
+      atualizarTextoMultiSelect();
+    }
+
+    function atualizarTextoMultiSelect() {
+      const chks = document.querySelectorAll('.chk-mod-item:checked');
+      const txt = document.getElementById('txt-multi-select');
+      if (chks.length === modelosCorteDinamicos.length) { txt.innerText = "Todos os Modelos"; document.getElementById('chk-todos-modelos').checked = true; }
+      else if (chks.length === 0) { txt.innerText = "Nenhum selecionado"; document.getElementById('chk-todos-modelos').checked = false; }
+      else { txt.innerText = `${chks.length} modelo(s) selecionado(s)`; document.getElementById('chk-todos-modelos').checked = false; }
+    }
+
+    function getModelosSelecionados() {
+      return Array.from(document.querySelectorAll('.chk-mod-item:checked')).map(c => c.value);
+    }
+
+    async function realizarLogin(e) {
+      e.preventDefault();
+      document.getElementById('login-erro').classList.add('hidden');
+      const uInput = document.getElementById('login-usuario').value.trim();
+      const sInput = document.getElementById('login-senha').value.trim();
+      const { data, error } = await db.from('usuarios_sistema').select('*').eq('usuario', uInput).eq('senha', sInput).maybeSingle();
+
+      if (error || !data) document.getElementById('login-erro').classList.remove('hidden');
+      else { usuarioLogado = data; localStorage.setItem('pcp_user', JSON.stringify(data)); carregarInterfacePorPerfil(); }
+    }
+
+    function verificarSessao() {
+      const sessao = localStorage.getItem('pcp_user');
+      if (sessao) { usuarioLogado = JSON.parse(sessao); carregarInterfacePorPerfil(); }
+    }
+
+    function fazerLogout() { localStorage.removeItem('pcp_user'); location.reload(); }
+
+    function carregarInterfacePorPerfil() {
+      document.getElementById('view-login').classList.add('hidden');
+      document.getElementById('menu-principal').classList.remove('hidden');
+      document.getElementById('conteudo-principal').classList.remove('hidden');
+      document.getElementById('rodapeCreditos').classList.remove('hidden');
+      document.getElementById('label-usuario-logado').innerText = `Conectado: ${usuarioLogado.nome} (${usuarioLogado.perfil.toUpperCase()})`;
+
+      document.getElementById('nav-btn-fabrica').classList.add('hidden');
+      document.getElementById('nav-btn-corte').classList.add('hidden');
+      document.getElementById('nav-btn-gerencia').classList.add('hidden');
+      document.getElementById('nav-btn-admin').classList.add('hidden');
+
+      if (usuarioLogado.perfil === 'producao_fabrica') { document.getElementById('nav-btn-fabrica').classList.remove('hidden'); mudarAba('fabrica'); }
+      else if (usuarioLogado.perfil === 'producao_corte') { document.getElementById('nav-btn-corte').classList.remove('hidden'); mudarAba('corte'); }
+      else if (usuarioLogado.perfil === 'gerencia') { document.getElementById('nav-btn-gerencia').classList.remove('hidden'); mudarAba('gerencia'); }
+      else if (usuarioLogado.perfil === 'admin_master') {
+        document.getElementById('nav-btn-fabrica').classList.remove('hidden');
+        document.getElementById('nav-btn-corte').classList.remove('hidden');
+        document.getElementById('nav-btn-gerencia').classList.remove('hidden');
+        document.getElementById('nav-btn-admin').classList.remove('hidden');
+        mudarAba('admin');
+      }
+    }
+
+    function mudarAba(aba) {
+      document.getElementById('view-fabrica').classList.add('hidden');
+      document.getElementById('view-corte').classList.add('hidden');
+      document.getElementById('view-gerencia').classList.add('hidden');
+      document.getElementById('view-admin').classList.add('hidden');
+
+      if (aba === 'fabrica') { document.getElementById('view-fabrica').classList.remove('hidden'); carregarConsultaPVC(); }
+      if (aba === 'corte') { document.getElementById('view-corte').classList.remove('hidden'); carregarConsultaCorte(); }
+      if (aba === 'gerencia') { document.getElementById('view-gerencia').classList.remove('hidden'); carregarDashboard(); }
+      if (aba === 'admin') { document.getElementById('view-admin').classList.remove('hidden'); carregarUsuarios(); }
+    }
+
+    function processarModelosDinamicos() {
+      modelosCorteDinamicos = [...MODELOS_BASE_CORTE];
+
+      listaFichasCache.forEach(f => {
+        const modStr = String(f.modelo);
+        
+        if (f.exibir_corte !== false && !modelosCorteDinamicos.includes(modStr)) {
+          modelosCorteDinamicos.push(modStr);
+        }
+
+        if (f.pvc_tipo && f.pvc_tipo !== 'NAO' && f.pvc_categoria) {
+          const listaDestino = f.pvc_tipo === 'JAQUETA' ? estruturaPvcDinamica.jaquetas : estruturaPvcDinamica.calcas;
+          let grupoCat = listaDestino.find(g => g.tecido === f.pvc_categoria);
+          if (grupoCat) {
+            if (!grupoCat.modelos.includes(modStr)) grupoCat.modelos.push(modStr);
+          } else {
+            listaDestino.push({ tecido: f.pvc_categoria, modelos: [modStr] });
+          }
+        }
+      });
+
+      renderGridsFabrica();
+      renderFormCorte();
+      renderMultiSelectModelos();
+    }
+
+    function renderGridsFabrica() {
+      document.getElementById('grid-jaquetas').innerHTML = estruturaPvcDinamica.jaquetas.map(grupo => `
+        <div class="flex flex-col space-y-1.5 bg-white/80 p-2.5 rounded-xl border border-blue-100 shadow-sm">
+          <span class="text-[11px] font-black text-blue-900 uppercase text-center border-b pb-1 border-blue-100">${grupo.tecido}</span>
+          <div class="flex flex-col gap-1.5 pt-1">
+            ${grupo.modelos.map(m => `
+              <button onclick="selecionar('modelo', '${m}')" id="btn-mod-${m}" class="p-2 text-base font-black rounded-lg border bg-gray-50 hover:bg-gray-200 transition text-gray-800 text-center w-full">${m}</button>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('grid-calcas').innerHTML = estruturaPvcDinamica.calcas.map(grupo => `
+        <div class="flex flex-col space-y-1.5 bg-white/80 p-2.5 rounded-xl border border-emerald-100 shadow-sm">
+          <span class="text-[11px] font-black text-emerald-900 uppercase text-center border-b pb-1 border-emerald-100">${grupo.tecido}</span>
+          <div class="flex flex-col gap-1.5 pt-1">
+            ${grupo.modelos.map(m => `
+              <button onclick="selecionar('modelo', '${m}')" id="btn-mod-${m}" class="p-2 text-base font-black rounded-lg border bg-gray-50 hover:bg-gray-200 transition text-gray-800 text-center w-full">${m}</button>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('grid-tamanhos').innerHTML = TAMANHOS.map(t => `<button onclick="selecionar('tamanho', '${t}')" id="btn-tam-${t}" class="p-3 text-base font-bold rounded-xl border-2 bg-gray-50 hover:bg-gray-200 transition text-gray-800">${t}</button>`).join('');
+      document.getElementById('grid-cores').innerHTML = CORES.map(c => `<button onclick="selecionar('cor', '${c}')" id="btn-cor-${c.replace(/[^a-zA-Z0-9]/g, '')}" class="p-3 text-xs sm:text-sm font-bold rounded-xl border-2 bg-gray-50 hover:bg-gray-200 transition text-gray-800">${c}</button>`).join('');
+      
+      document.getElementById('grid-setores-calcas').innerHTML = SETORES_CALCAS.map(s => `<button onclick="selecionar('setor', '${s.id}')" id="btn-set-${s.id.replace(/[^a-zA-Z0-9]/g, '')}" class="p-3 text-xs sm:text-sm font-bold rounded-xl border-2 bg-white hover:bg-gray-200 transition text-gray-800 shadow-sm">${s.label}</button>`).join('');
+      document.getElementById('grid-setores-jaquetas').innerHTML = SETORES_JAQUETAS.map(s => `<button onclick="selecionar('setor', '${s.id}')" id="btn-set-${s.id.replace(/[^a-zA-Z0-9]/g, '')}" class="p-3 text-xs sm:text-sm font-bold rounded-xl border-2 bg-white hover:bg-gray-200 transition text-gray-800 shadow-sm">${s.label}</button>`).join('');
+      document.getElementById('grid-setores-expedicao').innerHTML = SETORES_EXPEDICAO.map(s => `<button onclick="selecionar('setor', '${s.id}')" id="btn-set-${s.id.replace(/[^a-zA-Z0-9]/g, '')}" class="p-3 text-xs sm:text-sm font-bold rounded-xl border-2 bg-white hover:bg-gray-200 transition text-gray-800 shadow-sm">${s.label}</button>`).join('');
+
+      MOTIVOS_GRUPOS.forEach(g => {
+        const container = document.getElementById(g.grupoId);
+        if (container) {
+          container.innerHTML = g.motivos.map(m => {
+            const cleanId = `${g.setor}-${m}`.replace(/[^a-zA-Z0-9]/g, '');
+            return `<button type="button" onclick="selecionarMotivoRapido('${g.setor}', '${m}')" id="btn-mot-${cleanId}" class="p-2.5 text-xs font-bold rounded-lg border bg-white hover:bg-gray-100 transition text-gray-800 text-center w-full shadow-sm">${m}</button>`;
+          }).join('');
+        }
+      });
+    }
+
+    function renderFormCorte() {
+      document.getElementById('corte-data').value = new Date().toISOString().split('T')[0];
+      const opts = modelosCorteDinamicos.map(m => `<option value="${m}">${m}</option>`).join('');
+      document.getElementById('corte-modelo').innerHTML = opts;
+      document.getElementById('grid-grade-corte').innerHTML = TAMANHOS.map(t => `<div class="text-center"><label class="block text-xs font-bold mb-1">${t}</label><input type="number" id="corte-grade-${t}" placeholder="0" class="w-full p-2 border rounded-lg text-center font-bold"></div>`).join('');
+      validarModeloCampoUnico(document.getElementById('corte-modelo').value);
+    }
+
+    function selecionar(campo, valor) {
+      stateFabrica[campo] = valor;
+      let todosModelosPvc = [...estruturaPvcDinamica.jaquetas, ...estruturaPvcDinamica.calcas].flatMap(g => g.modelos);
+      let lista = campo === 'modelo' ? todosModelosPvc : campo === 'tamanho' ? TAMANHOS : campo === 'cor' ? CORES : ['CALÇA PREPARAÇÃO','CALÇA ELÁSTICO','JAQUETA PREPARAÇÃO','JAQUETA ZÍPER','JAQUETA FECHAMENTO','EXPEDIÇÃO'];
+      
+      lista.forEach(item => {
+        let cleanId = item.replace(/[^a-zA-Z0-9]/g, '');
+        let prefix = campo === 'modelo' ? 'btn-mod-' : campo === 'tamanho' ? 'btn-tam-' : campo === 'cor' ? 'btn-cor-' : 'btn-set-';
+        let btn = document.getElementById(prefix + cleanId);
+        if (btn) {
+          if (item === valor) btn.className = "p-2 font-bold rounded-lg border-2 bg-red-600 text-white border-red-800 shadow-md scale-105 transition text-base w-full";
+          else btn.className = "p-2 font-bold rounded-lg border bg-gray-50 hover:bg-gray-200 transition text-gray-800 text-base w-full";
+        }
+      });
+    }
+
+    function alterarQtd(v) { stateFabrica.qtd = Math.max(1, stateFabrica.qtd + v); document.getElementById('txt-qtd').innerText = stateFabrica.qtd; }
+
+    function toggleBtnPecaCurta() {
+      const btn = document.getElementById('btn-peca-curta');
+      const inputMotivo = document.getElementById('input-motivo');
+      isPecaCurtaAtivo = !isPecaCurtaAtivo;
+
+      if (isPecaCurtaAtivo) {
+        btn.className = "w-full py-4 px-4 rounded-xl border-2 border-amber-600 bg-amber-500 text-white font-black text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg scale-102 transition";
+        inputMotivo.value = 'PEÇA CURTA';
+        inputMotivo.disabled = true;
+        inputMotivo.classList.add('bg-amber-50', 'text-amber-900', 'font-bold', 'border-amber-300');
+        limparSelecaoMotivosBotoes(true);
+      } else {
+        btn.className = "w-full py-4 px-4 rounded-xl border-2 border-amber-400 bg-amber-100 hover:bg-amber-200 text-amber-900 font-black text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition active:scale-98";
+        inputMotivo.value = '';
+        inputMotivo.disabled = false;
+        inputMotivo.classList.remove('bg-amber-50', 'text-amber-900', 'font-bold', 'border-amber-300');
+      }
+    }
+
+    function selecionarMotivoRapido(setorPrefix, motivo) {
+      if (isPecaCurtaAtivo) toggleBtnPecaCurta();
+      const chaveUnica = `${setorPrefix}-${motivo}`;
+      const inputMotivo = document.getElementById('input-motivo');
+      
+      if (chaveMotivoSelecionada === chaveUnica) {
+        chaveMotivoSelecionada = '';
+        inputMotivo.value = '';
+      } else {
+        chaveMotivoSelecionada = chaveUnica;
+        inputMotivo.value = motivo;
+      }
+      atualizarEstiloBotoesMotivo();
+    }
+
+    function limparSelecaoMotivosBotoes(manterInput = false) {
+      chaveMotivoSelecionada = '';
+      atualizarEstiloBotoesMotivo();
+    }
+
+    function atualizarEstiloBotoesMotivo() {
+      MOTIVOS_GRUPOS.forEach(g => {
+        g.motivos.forEach(m => {
+          const chaveUnica = `${g.setor}-${m}`;
+          const cleanId = `${g.setor}-${m}`.replace(/[^a-zA-Z0-9]/g, '');
+          const btn = document.getElementById(`btn-mot-${cleanId}`);
+          if (btn) {
+            if (chaveMotivoSelecionada === chaveUnica) {
+              btn.className = "p-2.5 text-xs font-black rounded-lg border-2 bg-red-600 text-white border-red-800 shadow scale-102 transition text-center w-full";
+            } else {
+              btn.className = "p-2.5 text-xs font-bold rounded-lg border bg-white hover:bg-gray-100 transition text-gray-800 text-center w-full shadow-sm";
+            }
+          }
+        });
+      });
+    }
+
+    async function salvarPerdaFabrica() {
+      if (!stateFabrica.modelo || !stateFabrica.tamanho || !stateFabrica.cor || !stateFabrica.setor) { alert("Selecione Modelo, Tamanho, Cor e Setor!"); return; }
+      
+      const dataRegInput = document.getElementById('pvc-data-registro').value || new Date().toISOString().split('T')[0];
+      let motivo = document.getElementById('input-motivo').value.trim();
+
+      const { data: ft } = await db.from('ficha_tecnica').select('*').eq('modelo', stateFabrica.modelo).maybeSingle();
+      let consUnit = 0;
+      if (ft) {
+        let tKey = stateFabrica.tamanho.toLowerCase() === '2g' ? 'g2' : stateFabrica.tamanho.toLowerCase() === '3g' ? 'g3' : stateFabrica.tamanho.toLowerCase() === '4g' ? 'g4' : stateFabrica.tamanho.toLowerCase() === '5g' ? 'g5' : stateFabrica.tamanho.toLowerCase();
+        consUnit = ft[tKey] || 0;
+      }
+      const perdaM = Number((consUnit * stateFabrica.qtd).toFixed(4));
+
+      if (isPecaCurtaAtivo) motivo = 'PEÇA CURTA';
+      
+      const { error } = await db.from('perdas_fabrica').insert([{
+        modelo: stateFabrica.modelo, tamanho: stateFabrica.tamanho, cor: stateFabrica.cor, quantidade: stateFabrica.qtd, motivo, setor: stateFabrica.setor, perda_em_metros: perdaM, data_registro: dataRegInput
+      }]);
+
+      if (error) alert("Erro ao salvar: " + error.message);
+      else {
+        exibirSucesso();
+        stateFabrica = { modelo: '', tamanho: '', cor: '', setor: '', qtd: 1 };
+        document.getElementById('txt-qtd').innerText = '1';
+        if (isPecaCurtaAtivo) toggleBtnPecaCurta();
+        else { document.getElementById('input-motivo').value = ''; limparSelecaoMotivosBotoes(); }
+        renderGridsFabrica();
+        carregarConsultaPVC();
+      }
+    }
+
+    function validarModeloCampoUnico(modelo) {
+      const isUnicoPermitido = MODELOS_PERMITIDOS_UNICO.includes(String(modelo));
+      const inputUnico = document.getElementById('corte-grade-UNICO');
+
+      if (inputUnico) {
+        if (isUnicoPermitido) { inputUnico.disabled = false; inputUnico.classList.remove('bg-gray-200', 'cursor-not-allowed', 'opacity-50'); }
+        else { inputUnico.value = '0'; inputUnico.disabled = true; inputUnico.classList.add('bg-gray-200', 'cursor-not-allowed', 'opacity-50'); }
+      }
+
+      TAMANHOS.forEach(t => {
+        if (t !== 'UNICO') {
+          const inputTam = document.getElementById(`corte-grade-${t}`);
+          if (inputTam) {
+            if (isUnicoPermitido) { inputTam.value = '0'; inputTam.disabled = true; inputTam.classList.add('bg-gray-200', 'cursor-not-allowed', 'opacity-50'); }
+            else { inputTam.disabled = false; inputTam.classList.remove('bg-gray-200', 'cursor-not-allowed', 'opacity-50'); }
+          }
+        }
+      });
+    }
+
+    async function salvarCorte(e) {
+      e.preventDefault();
+      const dataC = document.getElementById('corte-data').value;
+      const mod = document.getElementById('corte-modelo').value;
+      const med = parseFloat(document.getElementById('corte-medida').value) || 0;
+      const cam = parseInt(document.getElementById('corte-camadas').value) || 0;
+      const medPerda = parseFloat(document.getElementById('corte-medida-perda').value) || 0;
+
+      if (med > 10.00 || medPerda > 10.00) {
+        const valorInvalido = med > 10.00 ? med : medPerda;
+        alert(`⚠️ ATENÇÃO: A medida informada (${valorInvalido} m) é maior que 10 metros.`);
+        return;
+      }
+
+      let grade = {}, totalPecas = 0;
+      TAMANHOS.forEach(t => {
+        let v = parseInt(document.getElementById(`corte-grade-${t}`).value) || 0;
+        grade[t.toLowerCase() === '2g' ? 'g2' : t.toLowerCase() === '3g' ? 'g3' : t.toLowerCase() === '4g' ? 'g4' : t.toLowerCase() === '5g' ? 'g5' : t.toLowerCase()] = v;
+        totalPecas += v;
+      });
+
+      if (totalPecas <= 0) { alert("⚠️ ATENÇÃO: Informe a quantidade de peças em pelo menos um tamanho!"); return; }
+
+      const perdaEnfestoTot = Number((medPerda * cam).toFixed(2));
+      const consumoEnfestoTot = Number(((med * cam) + perdaEnfestoTot).toFixed(2));
+      const consRealUnit = totalPecas > 0 ? Number((consumoEnfestoTot / totalPecas).toFixed(4)) : 0;
+
+      const { data: ft } = await db.from('ficha_tecnica').select('*').eq('modelo', mod).maybeSingle();
+      let metrosProjetados = 0;
+      if (ft) {
+        TAMANHOS.forEach(t => {
+          let field = t.toLowerCase() === '2g' ? 'g2' : t.toLowerCase() === '3g' ? 'g3' : t.toLowerCase() === '4g' ? 'g4' : t.toLowerCase() === '5g' ? 'g5' : t.toLowerCase();
+          metrosProjetados += ((grade[field] || 0) * (ft[field] || 0));
+        });
+      }
+      metrosProjetados = Number(metrosProjetados.toFixed(2));
+      const difRealVsFt = Number((consumoEnfestoTot - metrosProjetados).toFixed(2));
+
+      const { error } = await db.from('lancamentos_corte').insert([{
+        data_corte: dataC, modelo: mod, medida: med, camadas: cam, ...grade, total_pecas: totalPecas, consumo_enfesto: consumoEnfestoTot, consumo_real_unitario: consRealUnit, metros_projetados_ft: metrosProjetados, diferenca_real_vs_ft: difRealVsFt, medida_perda: medPerda, perda_total_metros: perdaEnfestoTot
+      }]);
+
+      if (error) alert("Erro ao salvar: " + error.message);
+      else {
+        exibirSucesso();
+        document.getElementById('form-corte').reset();
+        renderFormCorte();
+        carregarConsultaCorte();
+      }
+    }
+
+    function initDatasFiltro() {
+      const hoje = new Date();
+      const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      const isoHoje = hoje.toISOString().split('T')[0];
+      const isoIni = primeiroDia.toISOString().split('T')[0];
+
+      document.getElementById('pvc-data-registro').value = isoHoje;
+      document.getElementById('filtro-data-ini').value = isoIni;
+      document.getElementById('filtro-data-fim').value = isoHoje;
+      document.getElementById('pvc-filtro-ini').value = isoIni;
+      document.getElementById('pvc-filtro-fim').value = isoHoje;
+      document.getElementById('corte-filtro-ini').value = isoIni;
+      document.getElementById('corte-filtro-fim').value = isoHoje;
+    }
+
+    async function carregarFichasTecnicas() {
+      const { data: listFT } = await db.from('ficha_tecnica').select('*').order('modelo');
+      listaFichasCache = listFT || [];
+
+      processarModelosDinamicos();
+
+      document.getElementById('tb-fichas').innerHTML = listaFichasCache.map(f => `
+        <tr class="hover:bg-gray-50">
+          <td class="p-2 font-bold text-blue-900">${f.modelo}</td>
+          <td class="p-2 text-[11px]">
+            <span class="px-2 py-0.5 rounded font-bold ${f.exibir_corte !== false ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-500'}">
+              ${f.exibir_corte !== false ? '✂️ Corte' : 'Sem Corte'}
+            </span>
+            ${f.pvc_tipo && f.pvc_tipo !== 'NAO' ? `<span class="px-2 py-0.5 rounded font-bold bg-amber-100 text-amber-900 ml-1">${f.pvc_tipo === 'JAQUETA' ? '🧥' : '👖'} ${f.pvc_categoria || ''}</span>` : ''}
+          </td>
+          <td class="p-2">${f.pp || 0}</td><td class="p-2">${f.p || 0}</td><td class="p-2">${f.m || 0}</td><td class="p-2">${f.g || 0}</td>
+          <td class="p-2">${f.gg || 0}</td><td class="p-2">${f.ex || 0}</td><td class="p-2">${f.exg || 0}</td><td class="p-2">${f.g2 || 0}</td>
+          <td class="p-2">${f.g3 || 0}</td><td class="p-2">${f.g4 || 0}</td><td class="p-2">${f.g5 || 0}</td><td class="p-2">${f.unico || 0}</td>
+          <td class="p-2 text-center">
+            <button onclick="editarFichaTecnica('${f.modelo}')" class="px-2 py-1 bg-amber-100 text-amber-800 rounded font-bold text-xs hover:bg-amber-200">✏️ Editar</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function editarFichaTecnica(modelo) {
+      const item = listaFichasCache.find(f => String(f.modelo) === String(modelo));
+      if (item) {
+        document.getElementById('ft-modelo-input').value = item.modelo;
+        document.getElementById('chk-exibir-corte').checked = item.exibir_corte !== false;
+        document.getElementById('sel-pvc-tipo').value = item.pvc_tipo || 'NAO';
+        document.getElementById('sel-pvc-categoria').value = item.pvc_categoria || 'SUPER';
+
+        document.getElementById('ft-pp').value = item.pp || '';
+        document.getElementById('ft-p').value = item.p || '';
+        document.getElementById('ft-m').value = item.m || '';
+        document.getElementById('ft-g').value = item.g || '';
+        document.getElementById('ft-gg').value = item.gg || '';
+        document.getElementById('ft-ex').value = item.ex || '';
+        document.getElementById('ft-exg').value = item.exg || '';
+        document.getElementById('ft-g2').value = item.g2 || '';
+        document.getElementById('ft-g3').value = item.g3 || '';
+        document.getElementById('ft-g4').value = item.g4 || '';
+        document.getElementById('ft-g5').value = item.g5 || '';
+        document.getElementById('ft-unico').value = item.unico || '';
+      }
+      window.scrollTo({ top: document.getElementById('ft-modelo-input').offsetTop - 100, behavior: 'smooth' });
+    }
+
+    function limparFormFichaTecnica() {
+      document.getElementById('ft-modelo-input').value = '';
+      document.getElementById('chk-exibir-corte').checked = true;
+      document.getElementById('sel-pvc-tipo').value = 'NAO';
+      document.getElementById('sel-pvc-categoria').value = 'SUPER';
+      TAMANHOS.forEach(t => {
+        let field = t.toLowerCase() === '2g' ? 'g2' : t.toLowerCase() === '3g' ? 'g3' : t.toLowerCase() === '4g' ? 'g4' : t.toLowerCase() === '5g' ? 'g5' : t.toLowerCase();
+        let input = document.getElementById(`ft-${field}`);
+        if (input) input.value = '';
+      });
+    }
+
+    async function salvarFichaTecnica(e) {
+      e.preventDefault();
+      const mod = document.getElementById('ft-modelo-input').value.trim();
+      if (!mod) { alert("Informe o código/número do modelo!"); return; }
+
+      const payload = {
+        modelo: mod,
+        exibir_corte: document.getElementById('chk-exibir-corte').checked,
+        pvc_tipo: document.getElementById('sel-pvc-tipo').value,
+        pvc_categoria: document.getElementById('sel-pvc-categoria').value,
+        pp: parseFloat(document.getElementById('ft-pp').value) || 0,
+        p: parseFloat(document.getElementById('ft-p').value) || 0,
+        m: parseFloat(document.getElementById('ft-m').value) || 0,
+        g: parseFloat(document.getElementById('ft-g').value) || 0,
+        gg: parseFloat(document.getElementById('ft-gg').value) || 0,
+        ex: parseFloat(document.getElementById('ft-ex').value) || 0,
+        exg: parseFloat(document.getElementById('ft-exg').value) || 0,
+        g2: parseFloat(document.getElementById('ft-g2').value) || 0,
+        g3: parseFloat(document.getElementById('ft-g3').value) || 0,
+        g4: parseFloat(document.getElementById('ft-g4').value) || 0,
+        g5: parseFloat(document.getElementById('ft-g5').value) || 0,
+        unico: parseFloat(document.getElementById('ft-unico').value) || 0
+      };
+
+      const { error } = await db.from('ficha_tecnica').upsert([payload], { onConflict: 'modelo' });
+      if (error) alert("Erro ao salvar Ficha Técnica: " + error.message);
+      else {
+        exibirSucesso();
+        limparFormFichaTecnica();
+        await carregarFichasTecnicas();
+      }
+    }
+
+    async function carregarConsultaPVC() {
+      const dIni = document.getElementById('pvc-filtro-ini').value;
+      const dFim = document.getElementById('pvc-filtro-fim').value;
+      const setorSel = document.getElementById('pvc-filtro-setor').value;
+
+      let query = db.from('perdas_fabrica').select('*').gte('data_registro', dIni).lte('data_registro', dFim);
+      if (setorSel !== 'TODOS') query = query.eq('setor', setorSel);
+
+      const { data } = await query.order('data_registro', { ascending: false });
+
+      document.getElementById('tb-consulta-pvc').innerHTML = (data || []).map(r => `
+        <tr class="hover:bg-gray-50">
+          <td class="p-3">${formatarDataBR(r.data_registro)}</td>
+          <td class="p-3 font-bold text-gray-800">${r.modelo}</td>
+          <td class="p-3">${r.tamanho} / ${r.cor}</td>
+          <td class="p-3 font-bold text-amber-800">${r.setor}</td>
+          <td class="p-3 font-bold">${r.quantidade}</td>
+          <td class="p-3 font-bold ${r.perda_em_metros == 0 ? 'text-gray-400' : 'text-red-600'}">${r.perda_em_metros} m</td>
+          <td class="p-3 ${r.motivo === 'PEÇA CURTA' ? 'font-black text-amber-800 bg-amber-50 rounded px-2' : 'text-gray-500'}">${r.motivo || '-'}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function carregarConsultaCorte() {
+      const dIni = document.getElementById('corte-filtro-ini').value;
+      const dFim = document.getElementById('corte-filtro-fim').value;
+
+      const { data } = await db.from('lancamentos_corte').select('*').gte('data_corte', dIni).lte('data_corte', dFim).order('data_corte', { ascending: false });
+
+      document.getElementById('tb-consulta-corte').innerHTML = (data || []).map(r => `
+        <tr class="hover:bg-gray-50">
+          <td class="p-3">${formatarDataBR(r.data_corte)}</td>
+          <td class="p-3 font-bold text-blue-900">${r.modelo}</td>
+          <td class="p-3 font-bold">${r.total_pecas || 0}</td>
+          <td class="p-3 font-bold">${r.consumo_enfesto || 0} m</td>
+          <td class="p-3 font-semibold text-amber-700">${r.consumo_real_unitario || 0} m</td>
+          <td class="p-3">${r.metros_projetados_ft || 0} m</td>
+          <td class="p-3 font-bold ${r.diferenca_real_vs_ft > 0 ? 'text-red-600' : 'text-emerald-600'}">${r.diferenca_real_vs_ft || 0} m</td>
+        </tr>
+      `).join('');
+    }
+
+    async function carregarDashboard() {
+      const dIni = document.getElementById('filtro-data-ini').value;
+      const dFim = document.getElementById('filtro-data-fim').value;
+      const modelosSel = getModelosSelecionados();
+
+      if (modelosSel.length === 0) { alert("Selecione ao menos 1 modelo no filtro!"); return; }
+
+      let qCorte = db.from('lancamentos_corte').select('*').gte('data_corte', dIni).lte('data_corte', dFim);
+      const { data: cData } = await qCorte;
+
+      let qFabrica = db.from('perdas_fabrica').select('*').gte('data_registro', dIni).lte('data_registro', dFim);
+      const { data: fData } = await qFabrica;
+
+      dadosCorteCache = (cData || []).filter(r => modelosSel.includes(r.modelo));
+      dadosFabricaCache = (fData || []).filter(r => modelosSel.includes(r.modelo));
+
+      let totPecas = 0, totConsumo = 0, totProjetado = 0, totDiferenca = 0, totPerdaMesa = 0, totPerdaFabricaPreta = 0, somaConsumosUnitarios = 0;
+      
+      dadosCorteCache.forEach(r => {
+        totPecas += Number(r.total_pecas || 0);
+        totConsumo += Number(r.consumo_enfesto || 0);
+        totProjetado += Number(r.metros_projetados_ft || 0);
+        totDiferenca += Number(r.diferenca_real_vs_ft || 0);
+        totPerdaMesa += Number(r.perda_total_metros || 0);
+        somaConsumosUnitarios += Number(r.consumo_real_unitario || 0);
+      });
+      
+      dadosFabricaCache.forEach(r => { 
+        if (r.cor === 'PRETO' || r.cor === 'PRETO / ROSA PINK' || r.cor === 'PRETO / LILÁS') {
+          totPerdaFabricaPreta += Number(r.perda_em_metros || 0); 
+        }
+      });
+
+      const consumoMedioTotal = dadosCorteCache.length > 0 ? (somaConsumosUnitarios / dadosCorteCache.length) : 0;
+
+      document.getElementById('kpi-total-pecas').innerText = totPecas.toLocaleString('pt-BR');
+      document.getElementById('kpi-consumo-medio').innerText = consumoMedioTotal.toFixed(4) + " m";
+      document.getElementById('kpi-consumo').innerText = totConsumo.toFixed(2) + " m";
+      document.getElementById('kpi-projetado').innerText = totProjetado.toFixed(2) + " m";
+      document.getElementById('kpi-diferenca').innerText = (totDiferenca > 0 ? "+" : "") + totDiferenca.toFixed(2) + " m";
+      document.getElementById('kpi-perda-total').innerText = (totPerdaMesa + totPerdaFabricaPreta).toFixed(2) + " m";
+
+      const isAdmin = usuarioLogado && usuarioLogado.perfil === 'admin_master';
+      document.querySelectorAll('.col-acao-admin').forEach(el => {
+        if (isAdmin) el.classList.remove('hidden'); else el.classList.add('hidden');
+      });
+
+      document.getElementById('tb-corte').innerHTML = dadosCorteCache.map(r => `
+        <tr class="hover:bg-gray-50 font-medium">
+          <td class="p-3">${formatarDataBR(r.data_corte)}</td>
+          <td class="p-3 font-bold">${r.modelo}</td>
+          <td class="p-3 font-bold">${r.total_pecas || 0}</td>
+          <td class="p-3 font-bold">${r.consumo_enfesto || 0} m</td>
+          <td class="p-3">${r.metros_projetados_ft || 0} m</td>
+          <td class="p-3 font-bold ${r.diferenca_real_vs_ft > 0 ? 'text-red-600' : 'text-emerald-600'}">${r.diferenca_real_vs_ft || 0} m</td>
+          ${isAdmin ? `<td class="p-3 text-center"><button onclick="excluirLancamentoCorte('${r.id}')" class="px-2 py-1 bg-red-100 text-red-700 rounded font-bold text-xs hover:bg-red-200">❌ Excluir</button></td>` : ''}
+        </tr>
+      `).join('');
+
+      renderizarTabelaPVCGerencia();
+    }
+
+    function renderizarTabelaPVCGerencia() {
+      const corSelecionada = document.getElementById('filtro-pvc-cor').value;
+      const isAdmin = usuarioLogado && usuarioLogado.perfil === 'admin_master';
+
+      const listaFiltrada = dadosFabricaCache.filter(r => {
+        if (corSelecionada === 'TODAS') return true;
+        return r.cor === corSelecionada;
+      });
+
+      document.getElementById('tb-fabrica').innerHTML = listaFiltrada.map(r => `
+        <tr class="hover:bg-gray-50 font-medium">
+          <td class="p-3">${formatarDataBR(r.data_registro)}</td>
+          <td class="p-3 font-bold">${r.modelo}</td>
+          <td class="p-3">${r.tamanho} / ${r.cor}</td>
+          <td class="p-3 font-bold text-amber-800">${r.setor}</td>
+          <td class="p-3 font-bold">${r.quantidade}</td>
+          <td class="p-3 font-bold ${r.perda_em_metros == 0 ? 'text-gray-400' : 'text-red-600'}">${r.perda_em_metros} m</td>
+          <td class="p-3 ${r.motivo === 'PEÇA CURTA' ? 'font-black text-amber-800 bg-amber-50 rounded px-2' : 'text-gray-500'}">${r.motivo || '-'}</td>
+          ${isAdmin ? `<td class="p-3 text-center"><button onclick="excluirPerdaFabrica('${r.id}')" class="px-2 py-1 bg-red-100 text-red-700 rounded font-bold text-xs hover:bg-red-200">❌ Excluir</button></td>` : ''}
+        </tr>
+      `).join('');
+    }
+
+    async function excluirLancamentoCorte(id) {
+      if (confirm('Tem certeza que deseja apagar permanentemente este lançamento de corte?')) {
+        const { error } = await db.from('lancamentos_corte').delete().eq('id', id);
+        if (error) alert("Erro ao excluir: " + error.message);
+        else {
+          exibirSucesso();
+          carregarDashboard();
+        }
+      }
+    }
+
+    async function excluirPerdaFabrica(id) {
+      if (confirm('Tem certeza que deseja apagar permanentemente este registro de perda?')) {
+        const { error } = await db.from('perdas_fabrica').delete().eq('id', id);
+        if (error) alert("Erro ao excluir: " + error.message);
+        else {
+          exibirSucesso();
+          carregarDashboard();
+        }
+      }
+    }
+
+    function exportarExcel() {
+      const linhasCorteFormatadas = dadosCorteCache.map(r => ({
+        "Data Corte": formatarDataBR(r.data_corte),
+        "Modelo": r.modelo,
+        "Medida (m)": Number(r.medida || 0),
+        "Camadas": Number(r.camadas || 0),
+        "PP": Number(r.pp || 0),
+        "P": Number(r.p || 0),
+        "M": Number(r.m || 0),
+        "G": Number(r.g || 0),
+        "GG": Number(r.gg || 0),
+        "EX": Number(r.ex || 0),
+        "EXG": Number(r.exg || 0),
+        "2G": Number(r.g2 || 0),
+        "3G": Number(r.g3 || 0),
+        "4G": Number(r.g4 || 0),
+        "5G": Number(r.g5 || 0),
+        "Único": Number(r.unico || 0),
+        "Total Peças": Number(r.total_pecas || 0),
+        "Total Metros": Number(r.consumo_enfesto || 0),
+        "Consumo Real Unit.": Number(r.consumo_real_unitario || 0),
+        "Metros Projetados FT": Number(r.metros_projetados_ft || 0),
+        "Diferença": Number(r.diferenca_real_vs_ft || 0),
+        "Medida Perda": Number(r.medida_perda || 0),
+        "Perda Total (m)": Number(r.perda_total_metros || 0)
+      }));
+
+      const linhasPerdasFormatadas = dadosFabricaCache.map(r => ({
+        "Data Registro": formatarDataBR(r.data_registro),
+        "Modelo": r.modelo,
+        "Tamanho": r.tamanho,
+        "Cor": r.cor,
+        "Setor": r.setor,
+        "Quantidade (Peças)": Number(r.quantidade || 0),
+        "Perda Total (Metros)": Number(r.perda_em_metros || 0),
+        "Motivo": r.motivo || '-'
+      }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhasCorteFormatadas), "LANCAMENTOS_CORTE");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhasPerdasFormatadas), "PERDAS_REFUGO_PVC");
+      XLSX.writeFile(wb, `Controle_Consumo_Geral_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    function exportarExcelPerdasPVC() {
+      const corSelecionada = document.getElementById('filtro-pvc-cor').value;
+
+      const listaFiltrada = dadosFabricaCache.filter(r => {
+        if (corSelecionada === 'TODAS') return true;
+        return r.cor === corSelecionada;
+      });
+
+      if (listaFiltrada.length === 0) {
+        alert("Não há dados de perdas de PVC para exportar com o filtro de cor selecionado!");
+        return;
+      }
+
+      const linhasFormatadas = listaFiltrada.map(r => ({
+        "Data Registro": formatarDataBR(r.data_registro),
+        "Modelo": r.modelo,
+        "Tamanho": r.tamanho,
+        "Cor": r.cor,
+        "Setor": r.setor,
+        "Quantidade (Peças)": Number(r.quantidade || 0),
+        "Perda Total (Metros)": Number(r.perda_em_metros || 0),
+        "Motivo": r.motivo || '-'
+      }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhasFormatadas), "RELATORIO_PERDAS_PVC");
+      XLSX.writeFile(wb, `Relatorio_Perdas_PVC_${corSelecionada.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    async function carregarUsuarios() {
+      const { data: uList } = await db.from('usuarios_sistema').select('*').order('nome');
+      document.getElementById('tb-usuarios').innerHTML = (uList || []).map(u => `
+        <tr class="hover:bg-gray-50">
+          <td class="p-3 font-bold text-gray-800">${u.nome}</td>
+          <td class="p-3 font-bold text-blue-700">${u.usuario}</td>
+          <td class="p-3 font-mono text-gray-400">••••••••</td>
+          <td class="p-3"><span class="px-2 py-1 rounded-md text-xs font-bold bg-gray-100 border">${u.perfil}</span></td>
+          <td class="p-3 text-center space-x-1">
+            <button onclick="editarUser('${u.id}', '${u.nome}', '${u.usuario}', '${u.senha}', '${u.perfil}')" class="px-3 py-1 bg-amber-100 text-amber-800 rounded font-bold text-xs hover:bg-amber-200">✏️ Editar</button>
+            <button onclick="excluirUser('${u.id}')" class="px-3 py-1 bg-red-100 text-red-700 rounded font-bold text-xs hover:bg-red-200">❌ Excluir</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function salvarUsuario(e) {
+      e.preventDefault();
+      const editId = document.getElementById('user-id-edit').value;
+      const payload = {
+        nome: document.getElementById('user-nome').value.trim(),
+        usuario: document.getElementById('user-login').value.trim(),
+        senha: document.getElementById('user-senha').value.trim(),
+        perfil: document.getElementById('user-perfil').value
+      };
+
+      if (editId) await db.from('usuarios_sistema').update(payload).eq('id', editId);
+      else await db.from('usuarios_sistema').insert([payload]);
+
+      document.getElementById('user-id-edit').value = '';
+      document.getElementById('user-nome').value = '';
+      document.getElementById('user-login').value = '';
+      document.getElementById('user-senha').value = '';
+      document.getElementById('btn-salvar-user').innerText = '➕ Cadastrar Novo Usuário';
+
+      exibirSucesso();
+      carregarUsuarios();
+    }
+
+    function editarUser(id, nome, login, senha, perfil) {
+      document.getElementById('user-id-edit').value = id;
+      document.getElementById('user-nome').value = nome;
+      document.getElementById('user-login').value = login;
+      document.getElementById('user-senha').value = senha;
+      document.getElementById('user-perfil').value = perfil;
+      document.getElementById('btn-salvar-user').innerText = '💾 Salvar Alterações';
+    }
+
+    async function excluirUser(id) {
+      if (confirm('Tem certeza que deseja remover este usuário?')) {
+        await db.from('usuarios_sistema').delete().eq('id', id);
+        carregarUsuarios();
+      }
+    }
+
+    function exibirSucesso() {
+      const el = document.getElementById('alerta-sucesso');
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+
+    // GRAVAÇÃO E ENVIO DE ÁUDIO PARA A ROTA SERVERLESS /api/gemini
+    //
+    // Fluxo sequencial (não roda duas fontes de microfone ao mesmo tempo):
+    // 1) Grava o áudio e envia para o Gemini, com um tempo limite de espera.
+    // 2) Se o Gemini responder certo, preenche o formulário. Fim.
+    // 3) Se falhar/travar, pergunta ao operador se quer tentar o MODO BÁSICO
+    //    (reconhecimento de voz do navegador + regex) como alternativa - só
+    //    então o microfone é aberto de novo, sozinho, para esse modo.
+    const TIMEOUT_GEMINI_MS = 25000; // 25s - depois disso, desiste e oferece o modo básico
+
+    async function alternarGravacaoAudioIA() {
+      const btnIcon = document.getElementById('mic-icon');
+      const btnText = document.getElementById('mic-text');
+      const btn = document.getElementById('btn-mic-ia');
+
+      if (!estaGravando) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          chunksAudio = [];
+
+          const tiposMimePossiveis = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/aac'];
+          const mimeTypeSuportado = tiposMimePossiveis.find(type => MediaRecorder.isTypeSupported(type)) || '';
+
+          mediaRecorder = mimeTypeSuportado ? new MediaRecorder(stream, { mimeType: mimeTypeSuportado }) : new MediaRecorder(stream);
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunksAudio.push(e.data);
+          };
+
+          mediaRecorder.onstop = async () => {
+            const blobAudio = new Blob(chunksAudio, { type: mediaRecorder.mimeType || 'audio/webm' });
+            stream.getTracks().forEach(track => track.stop());
+            await enviarAudioParaRotaServerlessGemini(blobAudio, mediaRecorder.mimeType || 'audio/webm');
+          };
+
+          mediaRecorder.start();
+          estaGravando = true;
+
+          btnIcon.innerText = "🛑";
+          btnText.innerText = "Gravando... Clique p/ Concluir";
+          btn.className = "bg-red-600 hover:bg-red-700 text-white font-black px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 transition animate-pulse text-sm uppercase tracking-wider";
+        } catch (err) {
+          alert("Não foi possível acessar o microfone: " + err.message);
+        }
+      } else {
+        mediaRecorder.stop();
+        estaGravando = false;
+
+        btnIcon.innerText = "⏳";
+        btnText.innerText = "Processando com IA...";
+        btn.className = "bg-amber-600 text-white font-black px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 text-sm uppercase tracking-wider cursor-wait";
+      }
+    }
+
+    async function enviarAudioParaRotaServerlessGemini(blobAudio, mimeTypeCapturado) {
+      const reader = new FileReader();
+      reader.readAsDataURL(blobAudio);
+
+      reader.onloadend = async () => {
+        const base64Audio = reader.result.split(',')[1];
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_GEMINI_MS);
+
+        let resData = null;
+        let deuErro = false;
+
+        try {
+          const response = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audioBase64: base64Audio, mimeType: mimeTypeCapturado }),
+            signal: controller.signal
+          });
+
+          resData = await response.json();
+          if (!response.ok || resData.error) deuErro = true;
+        } catch (err) {
+          deuErro = true;
+          resData = {
+            error: err.name === 'AbortError'
+              ? `A IA não respondeu em ${TIMEOUT_GEMINI_MS / 1000} segundos.`
+              : (err.message || 'Erro de conexão com a IA.')
+          };
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        pararGravacaoInterface();
+
+        if (!deuErro) {
+          preencherFormularioCorteComJSONIA(resData);
+        } else {
+          console.error("Erro/timeout na rota Serverless Gemini:", resData);
+          oferecerModoBasico(resData);
+        }
+      };
+    }
+
+    // Chamado só quando o Gemini falha ou estoura o tempo limite. Pergunta ao
+    // operador se ele quer tentar o MODO BÁSICO (sem IA): reconhecimento de
+    // voz nativo do navegador + regex simples para preencher o formulário.
+    // O microfone só é reaberto aqui, depois que o do Gemini já foi liberado.
+    function oferecerModoBasico(resDataOriginal) {
+      const mensagemBase = resDataOriginal?.error || "Não foi possível processar o áudio com a IA.";
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognitionAPI) {
+        alert(mensagemBase + "\n\nSeu navegador não suporta o modo básico de reconhecimento de voz. Preencha manualmente.");
+        return;
+      }
+
+      const quer = confirm(
+        mensagemBase +
+        "\n\nDeseja tentar o MODO BÁSICO (sem IA)? Você vai ditar os dados de novo e o sistema tenta preencher por reconhecimento de voz simples (menos preciso que a IA)."
+      );
+
+      if (quer) iniciarModoBasicoReconhecimento();
+    }
+
+    // Modo básico: usa só a Web Speech API do navegador (sem o MediaRecorder,
+    // sem chamar o Gemini) para transcrever e extrair os dados via regex.
+    function iniciarModoBasicoReconhecimento() {
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const btnIcon = document.getElementById('mic-icon');
+      const btnText = document.getElementById('mic-text');
+      const btn = document.getElementById('btn-mic-ia');
+
+      let transcricaoModoBasico = '';
+
+      reconhecimentoVoz = new SpeechRecognitionAPI();
+      reconhecimentoVoz.lang = 'pt-BR';
+      reconhecimentoVoz.continuous = true;
+      reconhecimentoVoz.interimResults = false;
+
+      reconhecimentoVoz.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            transcricaoModoBasico += ' ' + event.results[i][0].transcript;
+          }
+        }
+      };
+
+      reconhecimentoVoz.onerror = (event) => {
+        console.warn('Erro no modo básico de reconhecimento:', event.error);
+      };
+
+      reconhecimentoVoz.onend = () => {
+        btn.onclick = alternarGravacaoAudioIA; // restaura o botão para o fluxo normal
+        pararGravacaoInterface();
+
+        const dados = extrairDadosViaRegex(transcricaoModoBasico.trim());
+        const algumCampoPreenchido = Object.values(dados).some(v => v !== '' && v !== undefined);
+
+        if (algumCampoPreenchido) {
+          preencherFormularioCorteComJSONIA(dados);
+          alert("⚠️ Preenchido pelo MODO BÁSICO (sem IA). Revise os campos com atenção antes de salvar.");
+        } else {
+          alert("O modo básico não conseguiu identificar dados na fala. Preencha manualmente.");
+        }
+      };
+
+      reconhecimentoVoz.start();
+
+      btnIcon.innerText = "🎤";
+      btnText.innerText = "MODO BÁSICO: Ouvindo... Clique p/ Concluir";
+      btn.className = "bg-purple-600 hover:bg-purple-700 text-white font-black px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 transition animate-pulse text-sm uppercase tracking-wider";
+      btn.onclick = () => { try { reconhecimentoVoz.stop(); } catch (err) { /* ignora */ } };
+    }
+
+    // Extrai dados do formulário de corte a partir de um texto transcrito,
+    // usando palavras-chave + o número que vem logo em seguida. É um método
+    // mais simples (e menos preciso) que o Gemini, usado apenas como reserva.
+    function extrairDadosViaRegex(transcricaoOriginal) {
+      let texto = ' ' + transcricaoOriginal.toLowerCase() + ' ';
+
+      // Normaliza vírgula decimal e remove pontuação que atrapalha
+      texto = texto.replace(/,/g, '.').replace(/[^a-z0-9à-ÿ.\s]/g, ' ');
+
+      // Junta expressões de tamanho compostas por várias palavras em um só token,
+      // seguindo o mesmo dicionário usado no prompt do Gemini
+      const substituicoesTamanho = [
+        [/\bextra\s*g[eê]?\b/g, ' exg '],
+        [/\bextra\b/g, ' ex '],
+        [/\bdois\s*g\b/g, ' 2g '],
+        [/\btr[eê]s\s*g\b/g, ' 3g '],
+        [/\bquatro\s*g\b/g, ' 4g '],
+        [/\bcinco\s*g\b/g, ' 5g '],
+        [/\b[uú]nico\b/g, ' unico ']
+      ];
+      substituicoesTamanho.forEach(([re, sub]) => { texto = texto.replace(re, sub); });
+
+      // Junta variações de "medida de perda" / "perda de enfesto" em um só token,
+      // ANTES de separar "medida" isolado, para não confundir os dois campos
+      texto = texto
+        .replace(/\bmedida\s+de\s+perda\b/g, ' medidaperda ')
+        .replace(/\bperda\s+de\s+enfesto\b/g, ' medidaperda ')
+        .replace(/\bperda\s+enfesto\b/g, ' medidaperda ')
+        .replace(/\bperda\b/g, ' medidaperda ');
+
+      const tokens = texto.split(/\s+/).filter(Boolean);
+
+      const dados = {
+        data: '', modelo: '', medida: '', camada: '', medida_perda: '',
+        PP: '', P: '', M: '', G: '', GG: '', EX: '', EXG: '',
+        '2G': '', '3G': '', '4G': '', '5G': '', UNICO: ''
+      };
+
+      // Mapa de palavra-chave falada -> campo do resultado.
+      // IMPORTANTE: chaves compostas (exg, 2g, 3g...) já foram normalizadas acima,
+      // então aqui só precisamos casar o token exato.
+      const mapaCampos = {
+        'modelo': 'modelo',
+        'medida': 'medida',
+        'medidaperda': 'medida_perda',
+        'camada': 'camada',
+        'camadas': 'camada',
+        'pp': 'PP',
+        'p': 'P',
+        'm': 'M',
+        'g': 'G',
+        'gg': 'GG',
+        'ex': 'EX',
+        'exg': 'EXG',
+        '2g': '2G',
+        '3g': '3G',
+        '4g': '4G',
+        '5g': '5G',
+        'unico': 'UNICO'
+      };
+
+      for (let i = 0; i < tokens.length - 1; i++) {
+        const token = tokens[i];
+        const proximo = tokens[i + 1];
+        const ehNumero = /^\d+(\.\d+)?$/.test(proximo);
+
+        if (!ehNumero) continue;
+        const campoDestino = mapaCampos[token];
+        if (!campoDestino) continue;
+
+        dados[campoDestino] = proximo;
+        i++; // pula o número já consumido, evita reaproveitar no próximo laço
+      }
+
+      return dados;
+    }
+
+    function pararGravacaoInterface() {
+      estaGravando = false;
+      const btnIcon = document.getElementById('mic-icon');
+      const btnText = document.getElementById('mic-text');
+      const btn = document.getElementById('btn-mic-ia');
+
+      btnIcon.innerText = "🎙️";
+      btnText.innerText = "Lançar Ordem por Voz (IA)";
+      btn.className = "bg-amber-500 hover:bg-amber-600 text-white font-black px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 transition active:scale-95 text-sm uppercase tracking-wider";
+    }
+
+    function preencherFormularioCorteComJSONIA(dados) {
+      if (dados.data) document.getElementById('corte-data').value = dados.data;
+      if (dados.modelo) {
+        document.getElementById('corte-modelo').value = String(dados.modelo);
+        validarModeloCampoUnico(dados.modelo);
+      }
+      if (dados.medida) document.getElementById('corte-medida').value = dados.medida;
+      if (dados.camada) document.getElementById('corte-camadas').value = dados.camada;
+      if (dados.medida_perda) document.getElementById('corte-medida-perda').value = dados.medida_perda;
+
+      TAMANHOS.forEach(t => {
+        const val = dados[t] || dados[t.toLowerCase()] || "";
+        const inputTam = document.getElementById(`corte-grade-${t}`);
+        if (inputTam && !inputTam.disabled) {
+          inputTam.value = val;
+        }
+      });
+    }
+  </script>
+</body>
+</html>
